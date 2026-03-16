@@ -25,48 +25,52 @@ pipeline {
         }
 
         stage('Run Trivy Scan') {
-    steps {
-        sh '''
-        trivy fs . \
-        --format sarif \
-        --output trivy.sarif
+            steps {
+                sh '''
+                trivy fs . --scanners vuln --format table > trivy-report.txt
 
-        trivy fs . \
-        --format template \
-        --template "@$HOME/trivy-templates/html.tpl" \
-        --output trivy-report.html
-        '''
-    }
-}
+                trivy fs . \
+                --format template \
+                --template @/var/lib/jenkins/trivy-templates/html.tpl \
+                --output trivy-report.html
+                '''
+            }
+        }
 
         stage('Publish Trivy Report to Jenkins UI') {
             steps {
                 publishHTML([
                     reportDir: '.',
                     reportFiles: 'trivy-report.html',
-                    reportName: 'Trivy Security Report',
-                    keepAll: true,
-                    alwaysLinkToLastBuild: true,
-                    allowMissing: false
+                    reportName: 'Trivy Security Report'
                 ])
             }
         }
 
-        stage('Upload Security Results to GitHub') {
-    steps {
-        sh '''
-        export GH_TOKEN=$GITHUB_TOKEN
+        stage('Create Security Summary') {
+            steps {
+                sh '''
+                echo "DevSecOps Scan Summary" > security-summary.txt
+                echo "" >> security-summary.txt
+                echo "Gitleaks: ✔ Scan Completed" >> security-summary.txt
+                echo "Trivy: ✔ Scan Completed" >> security-summary.txt
+                '''
+            }
+        }
 
-        gh api \
-        --method POST \
-        -H "Accept: application/vnd.github+json" \
-        /repos/himanshu0085/devsecops-demo/code-scanning/sarifs \
-        -f sarif=@trivy.sarif
-        '''
-    }
-}
+        stage('Post PR Comment') {
+            steps {
+                sh '''
+                export GH_TOKEN=$GITHUB_TOKEN
 
-        stage('Update GitHub Commit Status') {
+                gh pr comment 1 \
+                --repo $REPO \
+                --body "$(cat security-summary.txt)" || true
+                '''
+            }
+        }
+
+        stage('Update Commit Status') {
             steps {
                 sh '''
                 curl -X POST \
@@ -76,7 +80,7 @@ pipeline {
                 -d '{
                   "state": "success",
                   "context": "security/trivy",
-                  "description": "Trivy security scan completed"
+                  "description": "Security scans completed"
                 }'
                 '''
             }
