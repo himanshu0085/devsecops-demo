@@ -53,18 +53,18 @@ pipeline {
         }
 
         stage('Upload Security Results to GitHub') {
-            steps {
-                sh '''
-                gh auth login --with-token <<< $GITHUB_TOKEN
+    steps {
+        sh '''
+        export GH_TOKEN=$GITHUB_TOKEN
 
-                gh api \
-                  --method POST \
-                  -H "Accept: application/vnd.github+json" \
-                  /repos/$REPO/code-scanning/sarifs \
-                  -f sarif=@trivy.sarif
-                '''
-            }
-        }
+        gh api \
+        --method POST \
+        -H "Accept: application/vnd.github+json" \
+        /repos/himanshu0085/devsecops-demo/code-scanning/sarifs \
+        -f sarif=@trivy.sarif
+        '''
+    }
+}
 
         stage('Update GitHub Commit Status') {
             steps {
