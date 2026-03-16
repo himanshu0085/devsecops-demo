@@ -25,18 +25,19 @@ pipeline {
         }
 
         stage('Run Trivy Scan') {
-            steps {
-                sh '''
-                trivy fs . \
-                --format sarif \
-                --output trivy.sarif
+    steps {
+        sh '''
+        trivy fs . \
+        --format sarif \
+        --output trivy.sarif
 
-                trivy fs . \
-                --format html \
-                --output trivy-report.html
-                '''
-            }
-        }
+        trivy fs . \
+        --format template \
+        --template "@$HOME/trivy-templates/html.tpl" \
+        --output trivy-report.html
+        '''
+    }
+}
 
         stage('Publish Trivy Report to Jenkins UI') {
             steps {
