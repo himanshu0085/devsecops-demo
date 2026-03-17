@@ -102,11 +102,19 @@ pipeline {
                 sh '''
                 export GH_TOKEN=$GITHUB_TOKEN
 
-                # Get default branch from remote (SAFE FIX)
+                # Detect branch safely
                 BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
 
                 echo "Detected branch: $BRANCH"
                 echo "Commit: $GIT_COMMIT"
+
+                # Encode Trivy SARIF
+                gzip -c trivy.sarif > trivy.sarif.gz
+                TRIVY_BASE64=$(base64 -w 0 trivy.sarif.gz)
+
+                # Encode Gitleaks SARIF
+                gzip -c gitleaks.sarif > gitleaks.sarif.gz
+                GITLEAKS_BASE64=$(base64 -w 0 gitleaks.sarif.gz)
 
                 echo "Uploading Trivy SARIF..."
                 gh api \
@@ -115,7 +123,7 @@ pipeline {
                   /repos/$REPO/code-scanning/sarifs \
                   -f commit_sha=$GIT_COMMIT \
                   -f ref=refs/heads/$BRANCH \
-                  -f sarif=@trivy.sarif
+                  -f sarif="$TRIVY_BASE64"
 
                 echo "Uploading Gitleaks SARIF..."
                 gh api \
@@ -124,7 +132,7 @@ pipeline {
                   /repos/$REPO/code-scanning/sarifs \
                   -f commit_sha=$GIT_COMMIT \
                   -f ref=refs/heads/$BRANCH \
-                  -f sarif=@gitleaks.sarif
+                  -f sarif="$GITLEAKS_BASE64"
                 '''
             }
         }
