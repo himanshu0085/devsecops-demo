@@ -40,7 +40,8 @@ pipeline {
         stage('Convert Gitleaks Report to HTML') {
             steps {
                 sh '''
-                echo "<html><body><h2>Gitleaks Report</h2><pre>" > gitleaks-report.html
+                echo "<html><body><h2>Gitleaks Report</h2>" > gitleaks-report.html
+                echo "<p>If empty → No secrets found ✔</p><pre>" >> gitleaks-report.html
                 cat gitleaks.json >> gitleaks-report.html
                 echo "</pre></body></html>" >> gitleaks-report.html
                 '''
@@ -72,21 +73,21 @@ pipeline {
         stage('Create Security Summary') {
             steps {
                 sh '''
-                echo "DevSecOps Scan Summary" > security-summary.txt
+                echo "🔐 DevSecOps Scan Summary" > security-summary.txt
                 echo "" >> security-summary.txt
 
                 # Gitleaks check
                 if grep -q '"StartLine"' gitleaks.json; then
-                    echo "Gitleaks: ⚠ Secrets detected" >> security-summary.txt
+                    echo "❌ Gitleaks: Secrets detected" >> security-summary.txt
                 else
-                    echo "Gitleaks: ✔ No secrets found" >> security-summary.txt
+                    echo "✅ Gitleaks: No secrets found" >> security-summary.txt
                 fi
 
                 # Trivy check
                 if grep -q "CRITICAL\\|HIGH" trivy-report.txt; then
-                    echo "Trivy: ⚠ Vulnerabilities found" >> security-summary.txt
+                    echo "❌ Trivy: Vulnerabilities found" >> security-summary.txt
                 else
-                    echo "Trivy: ✔ No vulnerabilities found" >> security-summary.txt
+                    echo "✅ Trivy: No vulnerabilities found" >> security-summary.txt
                 fi
                 '''
             }
@@ -104,7 +105,7 @@ pipeline {
                     --repo $REPO \
                     --body "$(cat security-summary.txt)"
                 else
-                    echo "No PR found, skipping comment"
+                    echo "No PR found, skipping PR comment"
                 fi
                 '''
             }
@@ -120,7 +121,7 @@ pipeline {
                 -d '{
                   "state": "success",
                   "context": "security/devsecops",
-                  "description": "Gitleaks & Trivy scans completed"
+                  "description": "Security scans completed"
                 }'
                 '''
             }
