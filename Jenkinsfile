@@ -38,15 +38,17 @@ pipeline {
         }
 
         stage('Publish Trivy Report to Jenkins UI') {
-            steps {
-                publishHTML([
-                    reportDir: '.',
-                    reportFiles: 'trivy-report.html',
-                    reportName: 'Trivy Security Report'
-                ])
-            }
-        }
-
+    steps {
+        publishHTML([
+            reportDir: '.',
+            reportFiles: 'trivy-report.html',
+            reportName: 'Trivy Security Report',
+            keepAll: true,
+            alwaysLinkToLastBuild: true,
+            allowMissing: false
+        ])
+    }
+}
         stage('Create Security Summary') {
             steps {
                 sh '''
