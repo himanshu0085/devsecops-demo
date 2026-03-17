@@ -102,10 +102,10 @@ pipeline {
                 sh '''
                 export GH_TOKEN=$GITHUB_TOKEN
 
-                # Get branch dynamically
-                BRANCH=$(git rev-parse --abbrev-ref HEAD)
+                # Get default branch from remote (SAFE FIX)
+                BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
 
-                echo "Branch detected: $BRANCH"
+                echo "Detected branch: $BRANCH"
                 echo "Commit: $GIT_COMMIT"
 
                 echo "Uploading Trivy SARIF..."
