@@ -102,13 +102,19 @@ pipeline {
                 sh '''
                 export GH_TOKEN=$GITHUB_TOKEN
 
+                # Get branch dynamically
+                BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+                echo "Branch detected: $BRANCH"
+                echo "Commit: $GIT_COMMIT"
+
                 echo "Uploading Trivy SARIF..."
                 gh api \
                   --method POST \
                   -H "Accept: application/vnd.github+json" \
                   /repos/$REPO/code-scanning/sarifs \
                   -f commit_sha=$GIT_COMMIT \
-                  -f ref=refs/heads/$BRANCH_NAME \
+                  -f ref=refs/heads/$BRANCH \
                   -f sarif=@trivy.sarif
 
                 echo "Uploading Gitleaks SARIF..."
@@ -117,7 +123,7 @@ pipeline {
                   -H "Accept: application/vnd.github+json" \
                   /repos/$REPO/code-scanning/sarifs \
                   -f commit_sha=$GIT_COMMIT \
-                  -f ref=refs/heads/$BRANCH_NAME \
+                  -f ref=refs/heads/$BRANCH \
                   -f sarif=@gitleaks.sarif
                 '''
             }
