@@ -1,4 +1,8 @@
 {
+  "name": "vulnerable-app",
+  "version": "1.0.0",
+  "description": "Demo vulnerable app for Trivy scan",
+  "main": "index.js",
   "dependencies": {
     "lodash": "4.17.11",
     "express": "4.16.0"
