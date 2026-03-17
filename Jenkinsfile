@@ -18,8 +18,8 @@ pipeline {
             steps {
                 sh '''
                 gitleaks detect --source . \
-                --report-format sarif \
-                --report-path gitleaks.sarif || true
+                --report-format json \
+                --report-path gitleaks.json || true
                 '''
             }
         }
@@ -38,24 +38,37 @@ pipeline {
         }
 
         stage('Publish Trivy Report to Jenkins UI') {
-    steps {
-        publishHTML([
-            reportDir: '.',
-            reportFiles: 'trivy-report.html',
-            reportName: 'Trivy Security Report',
-            keepAll: true,
-            alwaysLinkToLastBuild: true,
-            allowMissing: false
-        ])
-    }
-}
+            steps {
+                publishHTML([
+                    reportDir: '.',
+                    reportFiles: 'trivy-report.html',
+                    reportName: 'Trivy Security Report',
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true,
+                    allowMissing: false
+                ])
+            }
+        }
+
         stage('Create Security Summary') {
             steps {
                 sh '''
                 echo "DevSecOps Scan Summary" > security-summary.txt
                 echo "" >> security-summary.txt
-                echo "Gitleaks: ✔ Scan Completed" >> security-summary.txt
-                echo "Trivy: ✔ Scan Completed" >> security-summary.txt
+
+                # Gitleaks result check
+                if grep -q '"StartLine"' gitleaks.json; then
+                    echo "Gitleaks: ⚠ Secrets detected" >> security-summary.txt
+                else
+                    echo "Gitleaks: ✔ No secrets found" >> security-summary.txt
+                fi
+
+                # Trivy result check (basic)
+                if grep -q "CRITICAL\\|HIGH" trivy-report.txt; then
+                    echo "Trivy: ⚠ Vulnerabilities found" >> security-summary.txt
+                else
+                    echo "Trivy: ✔ No vulnerabilities found" >> security-summary.txt
+                fi
                 '''
             }
         }
@@ -65,9 +78,15 @@ pipeline {
                 sh '''
                 export GH_TOKEN=$GITHUB_TOKEN
 
-                gh pr comment 1 \
-                --repo $REPO \
-                --body "$(cat security-summary.txt)" || true
+                PR_NUMBER=$(gh pr list --repo $REPO --limit 1 --json number -q '.[0].number')
+
+                if [ ! -z "$PR_NUMBER" ]; then
+                    gh pr comment $PR_NUMBER \
+                    --repo $REPO \
+                    --body "$(cat security-summary.txt)"
+                else
+                    echo "No PR found, skipping comment"
+                fi
                 '''
             }
         }
@@ -81,8 +100,8 @@ pipeline {
                 https://api.github.com/repos/$REPO/statuses/$GIT_COMMIT \
                 -d '{
                   "state": "success",
-                  "context": "security/trivy",
-                  "description": "Security scans completed"
+                  "context": "security/devsecops",
+                  "description": "Gitleaks & Trivy scans completed"
                 }'
                 '''
             }
