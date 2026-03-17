@@ -46,14 +46,13 @@ pipeline {
         stage('Convert Reports to HTML') {
             steps {
                 sh '''
-                # Gitleaks HTML
                 if grep -q '"StartLine"' gitleaks.json; then
-                    GITLEAKS_STATUS="❌ Secrets detected"
+                    STATUS="❌ Secrets detected"
                 else
-                    GITLEAKS_STATUS="✅ No secrets found"
+                    STATUS="✅ No secrets found"
                 fi
 
-                echo "<html><body><h2>Gitleaks Report</h2><p>$GITLEAKS_STATUS</p><pre>" > gitleaks-report.html
+                echo "<html><body><h2>Gitleaks Report</h2><p>$STATUS</p><pre>" > gitleaks-report.html
                 cat gitleaks.json >> gitleaks-report.html
                 echo "</pre></body></html>" >> gitleaks-report.html
                 '''
@@ -82,7 +81,7 @@ pipeline {
             }
         }
 
-        stage('Create Detailed PR Comment') {
+        stage('Create PR Comment') {
             steps {
                 sh '''
                 echo "## 🔐 DevSecOps Scan Report" > comment.md
@@ -98,7 +97,7 @@ pipeline {
             }
         }
 
-        stage('Upload SARIF to GitHub Security') {
+        stage('Upload SARIF to GitHub') {
             steps {
                 sh '''
                 export GH_TOKEN=$GITHUB_TOKEN
@@ -108,6 +107,8 @@ pipeline {
                   --method POST \
                   -H "Accept: application/vnd.github+json" \
                   /repos/$REPO/code-scanning/sarifs \
+                  -f commit_sha=$GIT_COMMIT \
+                  -f ref=refs/heads/$BRANCH_NAME \
                   -f sarif=@trivy.sarif
 
                 echo "Uploading Gitleaks SARIF..."
@@ -115,6 +116,8 @@ pipeline {
                   --method POST \
                   -H "Accept: application/vnd.github+json" \
                   /repos/$REPO/code-scanning/sarifs \
+                  -f commit_sha=$GIT_COMMIT \
+                  -f ref=refs/heads/$BRANCH_NAME \
                   -f sarif=@gitleaks.sarif
                 '''
             }
