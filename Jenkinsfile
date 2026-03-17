@@ -118,20 +118,32 @@ pipeline {
         }
 
         stage('Update Commit Status') {
-            steps {
-                sh '''
-                curl -X POST \
-                -H "Authorization: token $GITHUB_TOKEN" \
-                -H "Accept: application/vnd.github.v3+json" \
-                https://api.github.com/repos/$REPO/statuses/$GIT_COMMIT \
-                -d '{
-                  "state": "success",
-                  "context": "security/devsecops",
-                  "description": "Security scans completed"
-                }'
-                '''
-            }
-        }
+    steps {
+        sh '''
+        # Decide status message
+        if grep -q '"StartLine"' gitleaks.json; then
+            STATUS="failure"
+            DESC="❌ Secrets detected by Gitleaks"
+        elif grep -q "CRITICAL\\|HIGH" trivy-report.txt; then
+            STATUS="failure"
+            DESC="❌ Vulnerabilities found by Trivy"
+        else
+            STATUS="success"
+            DESC="✅ No issues found (Gitleaks + Trivy)"
+        fi
+
+        curl -X POST \
+        -H "Authorization: token $GITHUB_TOKEN" \
+        -H "Accept: application/vnd.github.v3+json" \
+        https://api.github.com/repos/$REPO/statuses/$GIT_COMMIT \
+        -d "{
+          \\"state\\": \\"$STATUS\\",
+          \\"context\\": \\"security/devsecops\\",
+          \\"description\\": \\"$DESC\\"
+        }"
+        '''
+    }
+}
 
     }
 }
