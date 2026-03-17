@@ -38,15 +38,21 @@ pipeline {
         }
 
         stage('Convert Gitleaks Report to HTML') {
-            steps {
-                sh '''
-                echo "<html><body><h2>Gitleaks Report</h2>" > gitleaks-report.html
-                echo "<p>If empty → No secrets found ✔</p><pre>" >> gitleaks-report.html
-                cat gitleaks.json >> gitleaks-report.html
-                echo "</pre></body></html>" >> gitleaks-report.html
-                '''
-            }
-        }
+    steps {
+        sh '''
+        if grep -q '"StartLine"' gitleaks.json; then
+            STATUS="❌ Secrets detected"
+        else
+            STATUS="✅ No secrets found"
+        fi
+
+        echo "<html><body><h2>Gitleaks Report</h2>" > gitleaks-report.html
+        echo "<p>$STATUS</p><pre>" >> gitleaks-report.html
+        cat gitleaks.json >> gitleaks-report.html
+        echo "</pre></body></html>" >> gitleaks-report.html
+        '''
+    }
+}
 
         stage('Publish Reports to Jenkins UI') {
             steps {
