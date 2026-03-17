@@ -37,12 +37,31 @@ pipeline {
             }
         }
 
-        stage('Publish Trivy Report to Jenkins UI') {
+        stage('Convert Gitleaks Report to HTML') {
+            steps {
+                sh '''
+                echo "<html><body><h2>Gitleaks Report</h2><pre>" > gitleaks-report.html
+                cat gitleaks.json >> gitleaks-report.html
+                echo "</pre></body></html>" >> gitleaks-report.html
+                '''
+            }
+        }
+
+        stage('Publish Reports to Jenkins UI') {
             steps {
                 publishHTML([
                     reportDir: '.',
                     reportFiles: 'trivy-report.html',
                     reportName: 'Trivy Security Report',
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true,
+                    allowMissing: false
+                ])
+
+                publishHTML([
+                    reportDir: '.',
+                    reportFiles: 'gitleaks-report.html',
+                    reportName: 'Gitleaks Report',
                     keepAll: true,
                     alwaysLinkToLastBuild: true,
                     allowMissing: false
@@ -56,14 +75,14 @@ pipeline {
                 echo "DevSecOps Scan Summary" > security-summary.txt
                 echo "" >> security-summary.txt
 
-                # Gitleaks result check
+                # Gitleaks check
                 if grep -q '"StartLine"' gitleaks.json; then
                     echo "Gitleaks: ⚠ Secrets detected" >> security-summary.txt
                 else
                     echo "Gitleaks: ✔ No secrets found" >> security-summary.txt
                 fi
 
-                # Trivy result check (basic)
+                # Trivy check
                 if grep -q "CRITICAL\\|HIGH" trivy-report.txt; then
                     echo "Trivy: ⚠ Vulnerabilities found" >> security-summary.txt
                 else
