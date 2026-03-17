@@ -31,13 +31,10 @@ pipeline {
         stage('Run Trivy Scan') {
             steps {
                 sh '''
-                # Table (for summary)
                 trivy fs . --format table > trivy-report.txt
 
-                # SARIF (for GitHub Security tab)
                 trivy fs . --format sarif --output trivy.sarif
 
-                # HTML (for Jenkins UI)
                 trivy fs . \
                 --format template \
                 --template @/var/lib/jenkins/trivy-templates/html.tpl \
@@ -46,17 +43,17 @@ pipeline {
             }
         }
 
-        stage('Convert Gitleaks Report to HTML') {
+        stage('Convert Reports to HTML') {
             steps {
                 sh '''
+                # Gitleaks HTML
                 if grep -q '"StartLine"' gitleaks.json; then
-                    STATUS="❌ Secrets detected"
+                    GITLEAKS_STATUS="❌ Secrets detected"
                 else
-                    STATUS="✅ No secrets found"
+                    GITLEAKS_STATUS="✅ No secrets found"
                 fi
 
-                echo "<html><body><h2>Gitleaks Report</h2>" > gitleaks-report.html
-                echo "<p>$STATUS</p><pre>" >> gitleaks-report.html
+                echo "<html><body><h2>Gitleaks Report</h2><p>$GITLEAKS_STATUS</p><pre>" > gitleaks-report.html
                 cat gitleaks.json >> gitleaks-report.html
                 echo "</pre></body></html>" >> gitleaks-report.html
                 '''
@@ -85,25 +82,18 @@ pipeline {
             }
         }
 
-        stage('Create Security Summary') {
+        stage('Create Detailed PR Comment') {
             steps {
                 sh '''
-                echo "🔐 DevSecOps Scan Summary" > security-summary.txt
-                echo "" >> security-summary.txt
+                echo "## 🔐 DevSecOps Scan Report" > comment.md
+                echo "" >> comment.md
 
-                # Gitleaks
-                if grep -q '"StartLine"' gitleaks.json; then
-                    echo "❌ Gitleaks: Secrets detected" >> security-summary.txt
-                else
-                    echo "✅ Gitleaks: No secrets found" >> security-summary.txt
-                fi
+                echo "### 🛑 Gitleaks Findings" >> comment.md
+                grep '"Description"' gitleaks.json >> comment.md || echo "No secrets found" >> comment.md
 
-                # Trivy
-                if grep -q "CRITICAL\\|HIGH" trivy-report.txt; then
-                    echo "❌ Trivy: Vulnerabilities found" >> security-summary.txt
-                else
-                    echo "✅ Trivy: No vulnerabilities found" >> security-summary.txt
-                fi
+                echo "" >> comment.md
+                echo "### 🚨 Trivy Findings" >> comment.md
+                grep "CRITICAL\\|HIGH" trivy-report.txt >> comment.md || echo "No vulnerabilities found" >> comment.md
                 '''
             }
         }
@@ -118,14 +108,14 @@ pipeline {
                   --method POST \
                   -H "Accept: application/vnd.github+json" \
                   /repos/$REPO/code-scanning/sarifs \
-                  -f sarif=@trivy.sarif || true
+                  -f sarif=@trivy.sarif
 
                 echo "Uploading Gitleaks SARIF..."
                 gh api \
                   --method POST \
                   -H "Accept: application/vnd.github+json" \
                   /repos/$REPO/code-scanning/sarifs \
-                  -f sarif=@gitleaks.sarif || true
+                  -f sarif=@gitleaks.sarif
                 '''
             }
         }
@@ -140,9 +130,9 @@ pipeline {
                 if [ ! -z "$PR_NUMBER" ]; then
                     gh pr comment $PR_NUMBER \
                     --repo $REPO \
-                    --body "$(cat security-summary.txt)"
+                    --body-file comment.md
                 else
-                    echo "No PR found, skipping PR comment"
+                    echo "No PR found"
                 fi
                 '''
             }
@@ -153,16 +143,16 @@ pipeline {
                 sh '''
                 if grep -q '"StartLine"' gitleaks.json; then
                     STATUS="failure"
-                    DESC="❌ Secrets detected by Gitleaks"
+                    DESC="Secrets detected"
                 elif grep -q "CRITICAL\\|HIGH" trivy-report.txt; then
                     STATUS="failure"
-                    DESC="❌ Vulnerabilities found by Trivy"
+                    DESC="Vulnerabilities found"
                 else
                     STATUS="success"
-                    DESC="✅ No issues found"
+                    DESC="No issues found"
                 fi
 
-                curl -X POST \
+                curl -s -X POST \
                 -H "Authorization: token $GITHUB_TOKEN" \
                 -H "Accept: application/vnd.github.v3+json" \
                 https://api.github.com/repos/$REPO/statuses/$GIT_COMMIT \
